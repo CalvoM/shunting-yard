@@ -7,6 +7,6 @@ import (
 )
 
 func main() {
-	r := strings.NewReader("A+B")
+	r := strings.NewReader("A+B*C")
 	shuntingyard.ToPostFix(r, nil)
 }
