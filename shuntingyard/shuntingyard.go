@@ -3,6 +3,7 @@ package shuntingyard
 import (
 	"fmt"
 	"io"
+	"reflect"
 )
 
 type OperatorAssociative uint8
@@ -18,26 +19,20 @@ type OperatorDetails struct {
 	Assoc      OperatorAssociative
 }
 
-func ToPostFix(input io.Reader, operatorMap map[byte]OperatorDetails) {
+func ToPostFix(input io.Reader, operators map[byte]OperatorDetails) {
 	content := make([]byte, 0)
 	opStack := make([]byte, 0)
-	if operatorMap == nil {
-		operatorMap = getDefaultOperatorMap()
+	if operators == nil {
+		operators = getDefaultOperatorMap()
 	}
-	buf := make([]byte, 1)
 	for {
-		_, err := input.Read(buf)
+		err := parseTokens(input, &opStack, &content, operators)
 		if err == io.EOF {
 			break
 		}
-		if operatorMap[buf[0]].Assoc == Assoc_none {
-			content = append(content, buf...)
-		} else {
-			opStack = append(opStack, buf...)
-		}
-
 	}
 	if len(opStack) != 0 {
+		reverseSlice(opStack)
 		content = append(content, opStack...)
 	}
 	fmt.Println(string(content))
@@ -45,7 +40,7 @@ func ToPostFix(input io.Reader, operatorMap map[byte]OperatorDetails) {
 }
 
 func getDefaultOperatorMap() map[byte]OperatorDetails {
-	operatorMap := make(map[byte]OperatorDetails)
+	operators := make(map[byte]OperatorDetails)
 	LBracketOp := OperatorDetails{Precedence: 15, Assoc: Assoc_ltr}
 	RBracketOp := OperatorDetails{Precedence: 15, Assoc: Assoc_ltr}
 	MultOp := OperatorDetails{Precedence: 14, Assoc: Assoc_ltr}
@@ -53,12 +48,51 @@ func getDefaultOperatorMap() map[byte]OperatorDetails {
 	ModOp := OperatorDetails{Precedence: 14, Assoc: Assoc_ltr}
 	AddOp := OperatorDetails{Precedence: 13, Assoc: Assoc_ltr}
 	SubOp := OperatorDetails{Precedence: 13, Assoc: Assoc_ltr}
-	operatorMap['('] = LBracketOp
-	operatorMap[')'] = RBracketOp
-	operatorMap['*'] = MultOp
-	operatorMap['/'] = DivOp
-	operatorMap['%'] = ModOp
-	operatorMap['+'] = AddOp
-	operatorMap['-'] = SubOp
-	return operatorMap
+	operators['('] = LBracketOp
+	operators[')'] = RBracketOp
+	operators['*'] = MultOp
+	operators['/'] = DivOp
+	operators['%'] = ModOp
+	operators['+'] = AddOp
+	operators['-'] = SubOp
+	return operators
+}
+
+func reverseSlice(s interface{}) {
+	n := reflect.ValueOf(s).Len()
+	swap := reflect.Swapper(s)
+	for i, j := 0, n-1; i < j; i, j = i+1, j-1 {
+		swap(i, j)
+	}
+}
+
+func parseTokens(input io.Reader, opStack *[]byte, content *[]byte, operators map[byte]OperatorDetails) error {
+	buf := make([]byte, 1)
+	_, err := input.Read(buf)
+	if err == io.EOF {
+		return io.EOF
+	}
+	if operators[buf[0]].Assoc == Assoc_none {
+		(*content) = append((*content), buf...)
+	} else {
+		if buf[0] == ')' {
+			reverseSlice((*opStack))
+			var i uint8
+			i = 0
+			fmt.Println(string(*opStack))
+			for (*opStack)[i] != '(' {
+				(*content) = append((*content), (*opStack)[0])
+				i += 1
+			}
+			fmt.Println(string(*opStack))
+			(*opStack) = append((*opStack), (*opStack)[1:]...)
+			return nil
+		}
+		(*opStack) = append((*opStack), buf...)
+		if buf[0] == '(' {
+			parseTokens(input, opStack, content, operators)
+		}
+	}
+	return nil
+
 }
