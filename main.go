@@ -8,5 +8,5 @@ import (
 
 func main() {
 	r := strings.NewReader("A+B")
-	shuntingyard.ToPostFix(r)
+	shuntingyard.ToPostFix(r, nil)
 }

@@ -9,8 +9,8 @@ type OperatorAssociative uint8
 
 const (
 	Assoc_none OperatorAssociative = iota
-	Assoc_left
-	Assoc_right
+	Assoc_ltr
+	Assoc_rtl
 )
 
 type OperatorDetails struct {
@@ -18,7 +18,7 @@ type OperatorDetails struct {
 	Assoc      OperatorAssociative
 }
 
-func ToPostFix(input io.Reader) {
+func ToPostFix(input io.Reader, operatorMap map[byte]OperatorDetails) {
 	buf := make([]byte, 10)
 	content := make([]byte, 1)
 	for {
@@ -31,4 +31,10 @@ func ToPostFix(input io.Reader) {
 	}
 	fmt.Println(string(content))
 
+}
+
+func getDefaultOperatorMap() map[byte]OperatorDetails {
+	operatorMap := make(map[byte]OperatorDetails)
+
+	return operatorMap
 }
