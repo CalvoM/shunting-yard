@@ -1,6 +1,7 @@
 package shuntingyard
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -14,11 +15,14 @@ const (
 	Assoc_rtl
 )
 
+var ErrRParensFound = errors.New("ErrRParensFound")
+
 type OperatorDetails struct {
 	Precedence int
 	Assoc      OperatorAssociative
 }
 
+//ToPostFix Converts any Infix notation streamed in input variable to PostFix Notation
 func ToPostFix(input io.Reader, operators map[byte]OperatorDetails) {
 	content := make([]byte, 0)
 	opStack := make([]byte, 0)
@@ -72,25 +76,52 @@ func parseTokens(input io.Reader, opStack *[]byte, content *[]byte, operators ma
 	if err == io.EOF {
 		return io.EOF
 	}
+	fmt.Println(string(buf[0]), string(*opStack), string(*content))
 	if operators[buf[0]].Assoc == Assoc_none {
-		(*content) = append((*content), buf...)
+		*content = append(*content, buf...) // Non-operators should be taken straight to postfix
 	} else {
 		if buf[0] == ')' {
-			reverseSlice((*opStack))
-			var i uint8
-			i = 0
-			fmt.Println(string(*opStack))
-			for (*opStack)[i] != '(' {
-				(*content) = append((*content), (*opStack)[0])
-				i += 1
+			stackLen := len(*opStack)
+			for (*opStack)[stackLen-1] != '(' {
+				*content = append(*content, (*opStack)[stackLen-1])
+				*opStack = (*opStack)[:stackLen-1]
+				stackLen = len(*opStack)
 			}
-			fmt.Println(string(*opStack))
-			(*opStack) = append((*opStack), (*opStack)[1:]...)
-			return nil
-		}
-		(*opStack) = append((*opStack), buf...)
-		if buf[0] == '(' {
-			parseTokens(input, opStack, content, operators)
+			*opStack = (*opStack)[:stackLen-1] //The LParens should not be in Postfix
+			return ErrRParensFound
+		} else if buf[0] == '(' { //Like starting new scope of parsing
+			(*opStack) = append((*opStack), buf...)
+			var parse_err error
+			for parse_err != ErrRParensFound {
+				parse_err = parseTokens(input, opStack, content, operators)
+			}
+		} else {
+			stackLen := len(*opStack)
+			if stackLen > 0 {
+				curSymbol := operators[buf[0]]
+				stackSymbol := operators[(*opStack)[stackLen-1]]
+				if curSymbol.Precedence > stackSymbol.Precedence {
+					(*opStack) = append((*opStack), buf...)
+				} else if stackSymbol.Precedence > curSymbol.Precedence {
+					if (*opStack)[stackLen-1] != '(' { // If the top of the stack is ( then no need to pop
+						*content = append(*content, (*opStack)[stackLen-1])
+						*opStack = (*opStack)[:stackLen-1]
+						(*opStack) = append((*opStack), buf...)
+					} else {
+						(*opStack) = append((*opStack), buf...)
+					}
+				} else if stackSymbol.Precedence == curSymbol.Precedence { //Compare the associativity
+					if curSymbol.Assoc == Assoc_rtl {
+						(*opStack) = append((*opStack), buf...)
+					} else if curSymbol.Assoc == Assoc_ltr {
+						*content = append(*content, (*opStack)[stackLen-1])
+						*opStack = (*opStack)[:stackLen-1]
+						(*opStack) = append((*opStack), buf...)
+					}
+				}
+			} else {
+				(*opStack) = append((*opStack), buf...)
+			}
 		}
 	}
 	return nil
